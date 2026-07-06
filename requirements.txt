@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+tensorflow
+numpy
+pandas
+opencv-python
+pillow
+scikit-learn
+jinja2
+sqlalchemy
+psycopg2-binary
+supabase

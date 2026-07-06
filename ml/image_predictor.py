@@ -1,0 +1,57 @@
+import tensorflow as tf
+import numpy as np
+from pathlib import Path
+from tensorflow.keras.applications.efficientnet import preprocess_input
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = BASE_DIR /"cancer_model.h5"
+
+model = None
+
+IMG_SIZE = 224
+
+
+def get_model():
+    global model
+    if model is None:
+        model = tf.keras.models.load_model(MODEL_PATH)
+    return model
+
+
+def preprocess_image(image_file):
+    img = tf.keras.utils.load_img(image_file, target_size=(IMG_SIZE, IMG_SIZE))
+    img = tf.keras.utils.img_to_array(img)
+    img = preprocess_input(img)  # ✅ IMPORTANT
+    img = np.expand_dims(img, axis=0)
+    return img
+
+
+def predict_image(img_path):
+
+    img = preprocess_image(img_path)
+
+    # Prédiction du modèle
+    prediction = model.predict(img, verbose=0)
+
+    # ==============================
+    # INTERPRÉTATION DU SCORE
+    # ==============================
+    score = float(prediction[0][0])
+
+    if score >= 0.5:
+        prediction_label =  " MALIGNE "
+        diagnosis = "Cancer malin détecté"
+        confidence = score
+        class_id = 1
+    else:
+        prediction_label =  " BELIGNE "
+        diagnosis = "Aucune tumeur maligne détectée"
+        confidence = 1 - score
+        class_id = 0
+
+    return {
+        "prediction": prediction_label,
+        "diagnostic":diagnosis,
+        "confidence": confidence,
+        "class_id": class_id
+    }
