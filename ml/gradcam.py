@@ -63,30 +63,34 @@ def get_last_conv_layer(model):
 def make_gradcam_heatmap(img_array, model):
 
     import tensorflow as tf
+    import numpy as np
 
-    print("GradCAM: création modèle", flush=True)
+    print("GradCAM: recherche EfficientNet", flush=True)
+
+    # Récupérer EfficientNet
+    efficientnet = model.get_layer("efficientnetb0")
 
 
-    # dernière couche convolutionnelle EfficientNet
-    base_model = model.get_layer("efficientnetb0")
-
+    # Modèle qui retourne :
+    # - dernière activation convolutionnelle
+    # - sortie finale
     grad_model = tf.keras.Model(
-        inputs=base_model.input,
+        inputs=model.inputs,
         outputs=[
-            base_model.get_layer("top_conv").output,
+            efficientnet.get_layer("top_conv").output,
             model.output
         ]
     )
 
 
-    print("GradCAM: passage forward", flush=True)
+    print("GradCAM: forward pass", flush=True)
 
 
     with tf.GradientTape() as tape:
 
         conv_outputs, predictions = grad_model(img_array)
 
-        loss = predictions[:,0]
+        loss = predictions[:, 0]
 
 
     print("GradCAM: gradients", flush=True)
@@ -107,9 +111,10 @@ def make_gradcam_heatmap(img_array, model):
     conv_outputs = conv_outputs[0]
 
 
-    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
-
-    heatmap = tf.squeeze(heatmap)
+    heatmap = tf.reduce_sum(
+        conv_outputs * pooled_grads,
+        axis=-1
+    )
 
 
     heatmap = tf.maximum(
@@ -118,7 +123,16 @@ def make_gradcam_heatmap(img_array, model):
     )
 
 
-    heatmap /= tf.reduce_max(heatmap)+1e-8
+    heatmap = heatmap / (
+        tf.reduce_max(heatmap) + 1e-8
+    )
+
+
+    print(
+        "GradCAM terminé :",
+        heatmap.shape,
+        flush=True
+    )
 
 
     return heatmap.numpy()
