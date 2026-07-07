@@ -166,23 +166,29 @@ async def predict_gradcam(file: UploadFile = File(...)):
         pred = float(model.predict(img_array, verbose=0)[0][0])
         print("5. Prediction :", pred, flush=True)
 
+
         print("6. Début GradCAM", flush=True)
 
         heatmap = make_gradcam_heatmap(
-         img_array,
-        model
+            img_array,
+            model
         )
 
         print("7. Heatmap créée :", heatmap.shape, flush=True)
 
 
         return {
-        "status": "ok",
-        "prediction": pred,
-        "heatmap_shape": str(heatmap.shape)
+            "status": "ok",
+            "prediction": pred,
+            "heatmap_shape": str(heatmap.shape)
         }
+
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(500, str(e))
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
