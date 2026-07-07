@@ -59,151 +59,89 @@ def get_last_conv_layer(model):
 # ========================================================
 # GRAD-CAM CORE
 # ========================================================
-
 def make_gradcam_heatmap(img_array, model):
 
     import tensorflow as tf
     import numpy as np
 
 
-    print("Recherche EfficientNet...", flush=True)
+    # ================================
+    # Trouver EfficientNet
+    # ================================
+
+    base_model = model.get_layer("efficientnetb0")
 
 
-    # Trouver le backbone CNN
-
-    base_model = None
-
-    for layer in model.layers:
-
-        if isinstance(layer, tf.keras.Model):
-
-            base_model = layer
-            break
-
-
-
-    if base_model is None:
-
-        raise Exception(
-            "Backbone EfficientNet introuvable"
-        )
-
-
-
-    print(
-        "Backbone:",
-        base_model.name,
-        flush=True
+    # Dernière couche convolutionnelle
+    last_conv_layer = base_model.get_layer(
+        "top_conv"
     )
 
 
-
-    # Recherche dernière convolution
-
-    last_conv = None
-
-
-    for layer in reversed(base_model.layers):
-
-        try:
-
-            if len(layer.output.shape) == 4:
-
-                last_conv = layer
-
-                break
-
-        except:
-
-            pass
-
-
-
-    if last_conv is None:
-
-        raise Exception(
-            "Aucune couche convolutionnelle trouvée"
-        )
-
-
-
-    print(
-        "Dernière couche conv:",
-        last_conv.name,
-        flush=True
-    )
-
-
-
-    # Modèle GradCAM
-
-    grad_model = tf.keras.Model(
-
-        inputs=base_model.input,
-
+    grad_model = tf.keras.models.Model(
+        inputs=model.inputs,
         outputs=[
-
-            last_conv.output,
-
-            base_model.output
-
+            last_conv_layer.output,
+            model.output
         ]
-
     )
 
 
+    # ================================
+    # Gradient
+    # ================================
 
     with tf.GradientTape() as tape:
 
-
-        conv_output, prediction = grad_model(
+        conv_outputs, predictions = grad_model(
             img_array
         )
 
 
-        loss = prediction[:,0]
+        loss = predictions[:,0]
 
 
-
-    gradients = tape.gradient(
+    grads = tape.gradient(
         loss,
-        conv_output
+        conv_outputs
     )
 
 
+    if grads is None:
+        raise Exception(
+            "Gradients NULL : impossible de calculer GradCAM"
+        )
 
-    pooled_gradients = tf.reduce_mean(
 
-        gradients,
+    # ================================
+    # Calcul heatmap
+    # ================================
 
+    pooled_grads = tf.reduce_mean(
+        grads,
         axis=(0,1,2)
-
     )
 
 
-
-    conv_output = conv_output[0]
-
+    conv_outputs = conv_outputs[0]
 
 
-    heatmap = tf.reduce_sum(
+    heatmap = conv_outputs @ pooled_grads[...,tf.newaxis]
 
-        conv_output * pooled_gradients,
 
-        axis=-1
-
+    heatmap = tf.squeeze(
+        heatmap
     )
 
 
-
-    heatmap = np.maximum(
+    heatmap = tf.maximum(
         heatmap,
         0
     )
 
 
     heatmap /= (
-        np.max(heatmap)
+        tf.reduce_max(heatmap)
         + 1e-8
     )
 
