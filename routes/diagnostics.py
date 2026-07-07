@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from PIL import Image
 import numpy as np
-import tensorflow as tf
+
 
 from ml.gradcam import (
     get_img_array,
@@ -44,7 +44,8 @@ model = None
 def get_model():
     global model
     if model is None:
-        model = tf.keras.models.load_model(MODEL_PATH)
+        import tensorflow as tf
+        model = tf.keras.models.load_model(str(MODEL_PATH))
     return model
 
 
@@ -86,10 +87,7 @@ async def predict(file: UploadFile = File(...)):
         img_array = get_img_array(file_path)
 
         model = get_model()
-        print(model.summary())
-
-        for layer in model.layers:
-            print(layer.name)
+        print("Modèle prêt")
 
         pred = model.predict(img_array, verbose=0)[0][0]
 
