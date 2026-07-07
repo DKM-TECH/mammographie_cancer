@@ -91,7 +91,6 @@ def save_upload_file(file: UploadFile):
 
 @router.post("/predict")
 async def predict(file: UploadFile = File(...)):
-
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
@@ -152,16 +151,17 @@ async def predict(file: UploadFile = File(...)):
 
 @router.post("/predict-gradcam")
 async def predict_gradcam(file: UploadFile = File(...)):
+      print(">>> predict_gradcam APPELE <<<", flush=True)
 
-    print("\n========== NOUVELLE REQUETE ==========")
+      print("\n========== NOUVELLE REQUETE ==========")
 
-    if file.content_type not in ALLOWED_TYPES:
+      if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
             detail="Format image non supporté"
         )
 
-    try:
+      try:
 
         # ------------------------------------------------
 
@@ -255,7 +255,7 @@ async def predict_gradcam(file: UploadFile = File(...)):
 
         }
 
-    except Exception as e:
+      except Exception as e:
 
         print("\n===== ERREUR =====")
         print(type(e).__name__)
