@@ -172,18 +172,19 @@ async def predict_gradcam(file: UploadFile = File(...)):
         # =========================
         # GRAD-CAM
         # =========================
-        heatmap = make_gradcam_heatmap(
-            img_array,
-            model
-        )
+        #heatmap = make_gradcam_heatmap(
+         #   img_array,
+          #  model
+        #)
+        gradcam_path = file_path
 
         print("Heatmap générée")
 
 
-        gradcam_path = overlay_heatmap(
-            file_path,
-            heatmap
-        )
+        #gradcam_path = overlay_heatmap(
+         #   file_path,
+          #  heatmap
+        #)
 
         print("GradCAM créée :", gradcam_path)
 
