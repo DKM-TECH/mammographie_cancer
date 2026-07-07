@@ -65,98 +65,100 @@ def make_gradcam_heatmap(img_array, model):
     import tensorflow as tf
 
 
-    print("Début Grad-CAM", flush=True)
+    print("Recherche couche convolutionnelle...", flush=True)
 
 
-    # ---------------------------------
-    # Recherche automatique EfficientNet
-    # ---------------------------------
+    # -----------------------------
+    # Recherche automatique
+    # -----------------------------
 
-    efficientnet = None
-
-    for layer in model.layers:
-
-        if isinstance(layer, tf.keras.Model):
-
-            efficientnet = layer
-            break
+    conv_layer = None
 
 
-    if efficientnet is None:
+    def search_layers(layer):
+
+        nonlocal conv_layer
+
+        if hasattr(layer, "layers"):
+
+            for sublayer in layer.layers:
+
+                search_layers(sublayer)
+
+
+        else:
+
+            if isinstance(
+                layer,
+                tf.keras.layers.Conv2D
+            ):
+
+                conv_layer = layer
+
+
+
+    search_layers(model)
+
+
+    if conv_layer is None:
+
         raise Exception(
-            "Aucun modèle interne trouvé"
+            "Aucune couche Conv2D trouvée"
         )
 
 
     print(
-        "Backbone trouvé:",
-        efficientnet.name,
+        "Couche GradCAM trouvée :",
+        conv_layer.name,
         flush=True
     )
 
 
-    # ---------------------------------
-    # Dernière couche convolutionnelle
-    # ---------------------------------
-
-    last_conv = efficientnet.get_layer(
-        "top_conv"
-    )
-
-
-    print(
-        "Couche GradCAM:",
-        last_conv.name,
-        flush=True
-    )
-
-
-    # ---------------------------------
-    # Création du modèle GradCAM
-    # EN GARDANT L'ENTREE ORIGINALE
-    # ---------------------------------
+    # -----------------------------
+    # Modèle GradCAM
+    # -----------------------------
 
     grad_model = tf.keras.Model(
         inputs=model.input,
         outputs=[
-            last_conv.output,
+            conv_layer.output,
             model.output
         ]
     )
 
 
-    # ---------------------------------
-    # Calcul gradient
-    # ---------------------------------
+    # -----------------------------
+    # Gradient
+    # -----------------------------
 
     with tf.GradientTape() as tape:
 
 
-        conv_output, prediction = grad_model(
+        conv_outputs, predictions = grad_model(
             img_array
         )
 
 
-        loss = prediction[:,0]
+        loss = predictions[:,0]
 
 
-    gradients = tape.gradient(
+    grads = tape.gradient(
         loss,
-        conv_output
+        conv_outputs
     )
 
 
-    pooled_gradients = tf.reduce_mean(
-        gradients,
+    pooled_grads = tf.reduce_mean(
+        grads,
         axis=(0,1,2)
     )
 
 
-    conv_output = conv_output[0]
+    conv_outputs = conv_outputs[0]
 
 
     heatmap = tf.reduce_sum(
-        conv_output * pooled_gradients,
+        conv_outputs * pooled_grads,
         axis=-1
     )
 
