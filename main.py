@@ -81,3 +81,11 @@ def health():
     return {
         "status": "ONCO AI API opérationnelle"
     }
+
+@app.get("/")
+def root():
+    return {
+        "application": "ONCO AI",
+        "message": "API d'aide à l'interprétation des mammographies",
+        "status": "running"
+    }
