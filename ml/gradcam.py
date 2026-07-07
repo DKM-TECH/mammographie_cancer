@@ -2,12 +2,13 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+import tensorflow as tf
+from tensorflow.keras.applications.efficientnet import preprocess_input
 
 
-def get_img_array(img_path, size=(224, 224)):
+def get_img_array(img_path, size=(224,224)):
 
-    import tensorflow as tf
-    from tensorflow.keras.applications.efficientnet import preprocess_input
+    print("Chargement image...", flush=True)
 
     img = tf.keras.utils.load_img(
         img_path,
@@ -23,8 +24,9 @@ def get_img_array(img_path, size=(224, 224)):
 
     img = img.astype(np.float32)
 
-    return img
+    print("Image prête :", img.shape, flush=True)
 
+    return img
 
 # ========================================================
 # TROUVER DERNIÈRE COUCHE CONV (ROBUSTE)
