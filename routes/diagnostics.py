@@ -63,7 +63,7 @@ def get_model():
             str(MODEL_PATH),
             compile=False
         )
-
+        model.summary()
         print("Modèle chargé.", flush=True)
 
     return model

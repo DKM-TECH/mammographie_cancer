@@ -65,86 +65,85 @@ def make_gradcam_heatmap(img_array, model):
     import tensorflow as tf
 
 
-    print("Recherche couche convolutionnelle...", flush=True)
+    print("=== GRADCAM START ===", flush=True)
 
 
-    # -----------------------------
-    # Recherche automatique
-    # -----------------------------
-
-    conv_layer = None
+    # Affichage structure modèle
+    for i, layer in enumerate(model.layers):
+        print(i, layer.name, type(layer), flush=True)
 
 
-    def search_layers(layer):
+    # Chercher le backbone EfficientNet
+    backbone = None
 
-        nonlocal conv_layer
+    for layer in model.layers:
 
-        if hasattr(layer, "layers"):
+        if isinstance(layer, tf.keras.Model):
 
-            for sublayer in layer.layers:
+            if "efficientnet" in layer.name.lower():
 
-                search_layers(sublayer)
-
-
-        else:
-
-            if isinstance(
-                layer,
-                tf.keras.layers.Conv2D
-            ):
-
-                conv_layer = layer
+                backbone = layer
+                break
 
 
-
-    search_layers(model)
-
-
-    if conv_layer is None:
-
+    if backbone is None:
         raise Exception(
-            "Aucune couche Conv2D trouvée"
+            "EfficientNet non trouvé"
         )
 
 
     print(
-        "Couche GradCAM trouvée :",
-        conv_layer.name,
+        "Backbone:",
+        backbone.name,
         flush=True
     )
 
 
-    # -----------------------------
-    # Modèle GradCAM
-    # -----------------------------
+    # dernière convolution
+    last_conv = backbone.get_layer(
+        "top_conv"
+    )
 
+
+    print(
+        "Dernière conv:",
+        last_conv.name,
+        flush=True
+    )
+
+
+    # modèle backbone uniquement
     grad_model = tf.keras.Model(
-        inputs=model.input,
+        inputs=backbone.input,
         outputs=[
-            conv_layer.output,
-            model.output
+            last_conv.output
         ]
     )
 
 
-    # -----------------------------
-    # Gradient
-    # -----------------------------
-
     with tf.GradientTape() as tape:
 
 
-        conv_outputs, predictions = grad_model(
+        conv_output = grad_model(
             img_array
         )
 
 
-        loss = predictions[:,0]
+        tape.watch(conv_output)
+
+
+        # Refaire la prédiction avec le modèle complet
+        prediction = model(
+            img_array
+        )
+
+
+        loss = prediction[:,0]
 
 
     grads = tape.gradient(
         loss,
-        conv_outputs
+        conv_output
     )
 
 
@@ -154,11 +153,11 @@ def make_gradcam_heatmap(img_array, model):
     )
 
 
-    conv_outputs = conv_outputs[0]
+    conv_output = conv_output[0]
 
 
     heatmap = tf.reduce_sum(
-        conv_outputs * pooled_grads,
+        conv_output * pooled_grads,
         axis=-1
     )
 
@@ -177,7 +176,7 @@ def make_gradcam_heatmap(img_array, model):
 
 
     print(
-        "Heatmap générée",
+        "=== HEATMAP OK ===",
         flush=True
     )
 
