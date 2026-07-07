@@ -151,117 +151,27 @@ async def predict(file: UploadFile = File(...)):
 
 @router.post("/predict-gradcam")
 async def predict_gradcam(file: UploadFile = File(...)):
-      print(">>> predict_gradcam APPELE <<<", flush=True)
-
-      print("\n========== NOUVELLE REQUETE ==========")
-
-      if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail="Format image non supporté"
-        )
-
-      try:
-
-        # ------------------------------------------------
+    try:
+        print("1. Début", flush=True)
 
         filepath = save_upload_file(file)
-
-        print("Image :", filepath)
-
-        # ------------------------------------------------
+        print("2. Image sauvegardée :", filepath, flush=True)
 
         img_array = get_img_array(filepath)
-
-        print("Prétraitement OK")
-
-        # ------------------------------------------------
+        print("3. Prétraitement OK", flush=True)
 
         model = get_model()
+        print("4. Modèle chargé", flush=True)
 
-        print("Modèle OK")
-
-        # ------------------------------------------------
-
-        prediction = model.predict(
-            img_array,
-            verbose=0
-        )[0][0]
-
-        score = float(prediction)
-
-        print("Score :", score)
-
-        # ------------------------------------------------
-        # GRAD-CAM
-        # ------------------------------------------------
-
-        print("Création Heatmap...")
-
-        heatmap = make_gradcam_heatmap(
-            img_array,
-            model
-        )
-
-        print("Heatmap OK")
-
-        gradcam_path = overlay_heatmap(
-            filepath,
-            heatmap
-        )
-
-        print("GradCAM :", gradcam_path)
-
-        print(
-            "Existe ?",
-            os.path.exists(gradcam_path)
-        )
-
-        # ------------------------------------------------
-
-        if score >= 0.5:
-
-            prediction = "MALIGNE"
-            diagnosis = "Cancer malin détecté"
-            confidence = score
-            class_id = 1
-
-        else:
-
-            prediction = "BENIGNE"
-            diagnosis = "Aucune tumeur maligne détectée"
-            confidence = 1 - score
-            class_id = 0
-
-        # ------------------------------------------------
+        pred = float(model.predict(img_array, verbose=0)[0][0])
+        print("5. Prediction :", pred, flush=True)
 
         return {
-
-            "status": "success",
-
-            "prediction": prediction,
-
-            "diagnosis": diagnosis,
-
-            "confidence": round(confidence,4),
-
-            "class_id": class_id,
-
-            "gradcam_image":
-                "/" + Path(gradcam_path).relative_to(BASE_DIR).as_posix(),
-
-            "original_image":
-                "/" + Path(filepath).relative_to(BASE_DIR).as_posix()
-
+            "status": "ok",
+            "prediction": pred
         }
 
-      except Exception as e:
-
-        print("\n===== ERREUR =====")
-        print(type(e).__name__)
-        print(e)
-
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
