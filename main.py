@@ -15,7 +15,7 @@ sys.path.append(str(BASE_DIR))
 # =========================
 # IMPORT ROUTERS
 # =========================
-from routes import login, patients, reports, diagnostics
+from routes import login, patients,  diagnostics
 #from dashboard import router as dashboard_router
 
 
@@ -65,7 +65,7 @@ app.add_middleware(
 app.include_router(login.router)
 app.include_router(patients.router)
 app.include_router(diagnostics.router)
-app.include_router(reports.router)
+#app.include_router(reports.router)
 
 
 # =========================
