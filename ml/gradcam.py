@@ -62,36 +62,45 @@ def get_last_conv_layer(model):
 def make_gradcam_heatmap(img_array, model):
 
     import tensorflow as tf
-    import numpy as np
 
 
-    # ================================
-    # Trouver EfficientNet
-    # ================================
+    # dernière couche convolutionnelle EfficientNet
+    conv_layer = None
 
-    base_model = model.get_layer("efficientnetb0")
+    for layer in model.layers:
+
+        if isinstance(layer, tf.keras.Model):
+
+            for sublayer in layer.layers:
+
+                if "top_conv" in sublayer.name:
+                    conv_layer = sublayer
 
 
-    # Dernière couche convolutionnelle
-    last_conv_layer = base_model.get_layer(
-        "top_conv"
+    if conv_layer is None:
+        raise Exception(
+            "Couche convolutionnelle introuvable"
+        )
+
+
+    print(
+        "Couche GradCAM :",
+        conv_layer.name,
+        flush=True
     )
 
 
-    grad_model = tf.keras.models.Model(
+    grad_model = tf.keras.Model(
         inputs=model.inputs,
         outputs=[
-            last_conv_layer.output,
+            conv_layer.output,
             model.output
         ]
     )
 
 
-    # ================================
-    # Gradient
-    # ================================
-
     with tf.GradientTape() as tape:
+
 
         conv_outputs, predictions = grad_model(
             img_array
@@ -109,13 +118,9 @@ def make_gradcam_heatmap(img_array, model):
 
     if grads is None:
         raise Exception(
-            "Gradients NULL : impossible de calculer GradCAM"
+            "Gradient nul - modèle non connecté"
         )
 
-
-    # ================================
-    # Calcul heatmap
-    # ================================
 
     pooled_grads = tf.reduce_mean(
         grads,
@@ -126,11 +131,9 @@ def make_gradcam_heatmap(img_array, model):
     conv_outputs = conv_outputs[0]
 
 
-    heatmap = conv_outputs @ pooled_grads[...,tf.newaxis]
-
-
-    heatmap = tf.squeeze(
-        heatmap
+    heatmap = tf.reduce_sum(
+        conv_outputs * pooled_grads,
+        axis=-1
     )
 
 
