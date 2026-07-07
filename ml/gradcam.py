@@ -171,10 +171,13 @@ def overlay_heatmap(img_path, heatmap, alpha=0.45):
     )
 
 
-    cv2.imwrite(
-        gradcam_path,
-        gradcam
+    success = cv2.imwrite(
+    gradcam_path,
+    gradcam
     )
+
+    print("FICHIER CREE ?", success)
+    print("EXISTE ?", Path(gradcam_path).exists())
 
 
     print("ORIGINAL :", img_path)

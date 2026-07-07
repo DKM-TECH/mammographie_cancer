@@ -222,18 +222,15 @@ async def predict_gradcam(file: UploadFile = File(...)):
 
             "diagnosis": diagnosis,
 
-            "confidence": round(confidence, 4),
+            "confidence": round(confidence,4),
 
             "class_id": class_id,
 
-
             "gradcam_image":
-                "/" + gradcam_path.replace("\\", "/"),
-
+        "/" + gradcam_path.replace("\\","/"),
 
             "original_image":
-                "/" + file_path.replace("\\", "/")
-
+        "/" + file_path.replace("\\","/")
         }
 
 
