@@ -13,6 +13,12 @@ from ml.gradcam import (
     overlay_heatmap
 )
 
+from pydantic import BaseModel
+
+
+class GradcamRequest(BaseModel):
+    image_path: str
+
 router = APIRouter()
 
 # =========================
@@ -156,47 +162,145 @@ async def predict(file: UploadFile = File(...)):
 
 @router.post("/predict-gradcam")
 async def predict_gradcam(file: UploadFile = File(...)):
+
+    filepath = save_upload_file(file)
+
+    img_array = get_img_array(filepath)
+
+    model = get_model()
+
+
+    score = float(
+        model.predict(
+            img_array,
+            verbose=0
+        )[0][0]
+    )
+
+
+    # Réponse immédiate
+    return {
+        "status":"success",
+        "prediction":score,
+        "original_image":
+            "/" + filepath
+    }
+@router.post("/generate-gradcam")
+async def generate_gradcam(data: GradcamRequest):
+
     try:
-        print("1. Début", flush=True)
 
-        filepath = save_upload_file(file)
-        print("2. Image sauvegardée :", filepath, flush=True)
+        print("=== GENERATION GRADCAM ===", flush=True)
 
-        img_array = get_img_array(filepath)
-        print("3. Prétraitement OK", flush=True)
+
+        # -----------------------------
+        # Récupération chemin image
+        # -----------------------------
+
+        image_path = data.image_path
+
+
+        # Si le frontend envoie /uploads/image.png
+        # on transforme en chemin serveur réel
+
+        if image_path.startswith("/"):
+            image_path = str(BASE_DIR) + image_path
+
+
+        print(
+            "Image utilisée :",
+            image_path,
+            flush=True
+        )
+
+
+        if not Path(image_path).exists():
+
+            raise FileNotFoundError(
+                f"Image introuvable : {image_path}"
+            )
+
+
+        # -----------------------------
+        # Chargement modèle
+        # -----------------------------
 
         model = get_model()
-        print("4. Modèle chargé", flush=True)
 
-        pred = float(model.predict(img_array, verbose=0)[0][0])
-        print("5. Prediction :", pred, flush=True)
+        print(
+            "Modèle chargé",
+            flush=True
+        )
 
 
-        print("6. Début GradCAM", flush=True)
+        # -----------------------------
+        # Prétraitement
+        # -----------------------------
+
+        img_array = get_img_array(
+            image_path
+        )
+
+        print(
+            "Image préparée",
+            flush=True
+        )
+
+
+        # -----------------------------
+        # Génération Heatmap
+        # -----------------------------
 
         heatmap = make_gradcam_heatmap(
             img_array,
             model
         )
 
-        print("7. Heatmap créée :", heatmap.shape, flush=True)
+
+        print(
+            "Heatmap créée",
+            flush=True
+        )
+
+
+        # -----------------------------
+        # Superposition
+        # -----------------------------
+
+        gradcam_path = overlay_heatmap(
+            image_path,
+            heatmap
+        )
+
+
+        print(
+            "GradCAM créée :",
+            gradcam_path,
+            flush=True
+        )
 
 
         return {
-            "status": "ok",
-            "prediction": pred,
-            "heatmap_shape": str(heatmap.shape)
+
+            "status": "success",
+
+            "gradcam_image":
+                "/" + Path(gradcam_path)
+                .relative_to(BASE_DIR)
+                .as_posix()
+
         }
 
 
     except Exception as e:
+
+
         import traceback
 
-        print("========== ERREUR COMPLETE ==========", flush=True)
         traceback.print_exc()
-        print("=====================================", flush=True)
 
-        return {
-        "status": "error",
-        "detail": str(e)
-        }
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
