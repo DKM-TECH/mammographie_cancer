@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+
+
 def get_img_array(img_path, size=(224, 224)):
 
     import tensorflow as tf
@@ -114,32 +116,26 @@ def make_gradcam_heatmap(img_array, model, pred_index=None):
 # SUPERPOSITION HEATMAP
 # ========================================================
 
-from pathlib import Path
+
 
 
 def overlay_heatmap(img_path, heatmap, alpha=0.45):
 
-    img = cv2.imread(str(img_path))
+    img = cv2.imread(img_path)
 
     if img is None:
         raise ValueError("Image introuvable")
 
 
-    # Redimensionnement image
-    img = cv2.resize(
-        img,
-        (224,224)
-    )
+    img = cv2.resize(img, (224,224))
 
 
-    # Redimensionnement heatmap
     heatmap = cv2.resize(
         heatmap,
         (224,224)
     )
 
 
-    # Conversion en image couleur
     heatmap = np.uint8(
         255 * heatmap
     )
@@ -151,35 +147,38 @@ def overlay_heatmap(img_path, heatmap, alpha=0.45):
     )
 
 
-    # Fusion
     gradcam = cv2.addWeighted(
         img,
-        0.55,
+        1-alpha,
         heatmap_color,
-        0.45,
+        alpha,
         0
     )
 
 
-    # Création nouveau fichier
-    path = Path(img_path)
+    original = Path(img_path)
 
-    output_path = (
-        path.parent /
-        f"{path.stem}_gradcam{path.suffix}"
+
+    gradcam_name = (
+        original.stem 
+        + "_gradcam"
+        + original.suffix
+    )
+
+
+    gradcam_path = str(
+        original.parent / gradcam_name
     )
 
 
     cv2.imwrite(
-        str(output_path),
+        gradcam_path,
         gradcam
     )
 
 
-    print("==============================")
-    print("IMAGE ORIGINALE :", img_path)
-    print("IMAGE GRADCAM   :", output_path)
-    print("==============================")
+    print("ORIGINAL :", img_path)
+    print("GRADCAM :", gradcam_path)
 
 
-    return str(output_path)
+    return gradcam_path
