@@ -1,24 +1,23 @@
 import cv2
-
-
-# ========================================================
-# IMAGE -> ARRAY
-# ========================================================
-
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.applications.efficientnet import preprocess_input
-
 
 def get_img_array(img_path, size=(224, 224)):
-    img = tf.keras.utils.load_img(img_path, target_size=size, color_mode="rgb")
+
+    import tensorflow as tf
+    from tensorflow.keras.applications.efficientnet import preprocess_input
+
+    img = tf.keras.utils.load_img(
+        img_path,
+        target_size=size,
+        color_mode="rgb"
+    )
+
     img = tf.keras.utils.img_to_array(img)
 
     img = preprocess_input(img)
 
     img = np.expand_dims(img, axis=0)
 
-    # 🔥 IMPORTANT
     img = img.astype(np.float32)
 
     return img
@@ -57,7 +56,7 @@ def get_last_conv_layer(model):
 # ========================================================
 
 def make_gradcam_heatmap(img_array, model, pred_index=None):
-
+    import tensorflow as tf
     # Sous-modèle EfficientNet
     efficientnet = model.get_layer("efficientnetb0")
 
