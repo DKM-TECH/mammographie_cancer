@@ -16,7 +16,7 @@ sys.path.append(str(BASE_DIR))
 # IMPORT ROUTERS
 # =========================
 from routes import login, patients, reports, diagnostics
-from dashboard import router as dashboard_router
+#from dashboard import router as dashboard_router
 
 
 # =========================
@@ -34,18 +34,15 @@ app = FastAPI(
 # =========================
 
 # Images patients / résultats
+
+UPLOADS_DIR = BASE_DIR / "uploads"
+
+UPLOADS_DIR.mkdir(exist_ok=True)
+
 app.mount(
     "/uploads",
-    StaticFiles(directory="uploads"),
+    StaticFiles(directory=str(UPLOADS_DIR)),
     name="uploads"
-)
-
-
-# Fichiers CSS, JS, images du dashboard
-app.mount(
-    "/static",
-    StaticFiles(directory="static"),
-    name="static"
 )
 
 
@@ -74,7 +71,7 @@ app.include_router(reports.router)
 # =========================
 # DASHBOARD WEB
 # =========================
-app.include_router(dashboard_router)
+#app.include_router(dashboard_router)
 
 
 # =========================

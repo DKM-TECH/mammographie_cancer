@@ -3,8 +3,12 @@ import numpy as np
 from pathlib import Path
 from tensorflow.keras.applications.efficientnet import preprocess_input
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR /"cancer_model.h5"
+BASE_DIR = Path(__file__).resolve().parent
+
+MODEL_PATH = BASE_DIR / "cancer_model.h5"
+
+print("MODEL PATH =", MODEL_PATH)
+print("EXISTS ?", MODEL_PATH.exists())
 
 model = None
 
@@ -14,7 +18,7 @@ IMG_SIZE = 224
 def get_model():
     global model
     if model is None:
-        model = tf.keras.models.load_model(MODEL_PATH)
+        model = tf.keras.models.load_model(str(MODEL_PATH))
     return model
 
 
@@ -28,30 +32,28 @@ def preprocess_image(image_file):
 
 def predict_image(img_path):
 
+    model = get_model()
+
     img = preprocess_image(img_path)
 
-    # Prédiction du modèle
     prediction = model.predict(img, verbose=0)
 
-    # ==============================
-    # INTERPRÉTATION DU SCORE
-    # ==============================
     score = float(prediction[0][0])
 
     if score >= 0.5:
-        prediction_label =  " MALIGNE "
+        prediction_label = "MALIGNE"
         diagnosis = "Cancer malin détecté"
         confidence = score
         class_id = 1
     else:
-        prediction_label =  " BELIGNE "
+        prediction_label = "BENIGNE"
         diagnosis = "Aucune tumeur maligne détectée"
         confidence = 1 - score
         class_id = 0
 
     return {
         "prediction": prediction_label,
-        "diagnostic":diagnosis,
+        "diagnostic": diagnosis,
         "confidence": confidence,
         "class_id": class_id
     }
