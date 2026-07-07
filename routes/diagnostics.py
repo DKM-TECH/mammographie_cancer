@@ -120,45 +120,124 @@ async def predict(file: UploadFile = File(...)):
 @router.post("/predict-gradcam")
 async def predict_gradcam(file: UploadFile = File(...)):
 
+    print("===== NOUVELLE REQUETE DIAGNOSTIC =====")
+    print("Fichier reçu :", file.filename)
+    print("Type :", file.content_type)
+
     if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail="Format image non supporté")
+        raise HTTPException(
+            status_code=400,
+            detail="Format image non supporté"
+        )
 
     try:
+
+        # =========================
+        # SAUVEGARDE IMAGE
+        # =========================
         file_path = save_upload_file(file)
 
-        img_array = get_img_array(file_path)  # 🔥 déjà preprocess_input
+        print("Image sauvegardée :", file_path)
 
+
+        # =========================
+        # PREPROCESSING
+        # =========================
+        img_array = get_img_array(file_path)
+
+        print("Prétraitement terminé")
+
+
+        # =========================
+        # CHARGEMENT MODELE
+        # =========================
         model = get_model()
-        pred = model.predict(img_array, verbose=0)[0][0]
 
-        #label = "Cancer" if pred >= 0.5 else "Non-cancer"
+        print("Modèle chargé")
 
-        # ✅ GRAD-CAM FIXÉ
-        heatmap = make_gradcam_heatmap(img_array, model)
 
-        gradcam_path = overlay_heatmap(file_path, heatmap)
+        # =========================
+        # PREDICTION
+        # =========================
+        pred = model.predict(
+            img_array,
+            verbose=0
+        )[0][0]
 
         score = float(pred)
 
+        print("Score IA :", score)
+
+
+        # =========================
+        # GRAD-CAM
+        # =========================
+        heatmap = make_gradcam_heatmap(
+            img_array,
+            model
+        )
+
+        print("Heatmap générée")
+
+
+        gradcam_path = overlay_heatmap(
+            file_path,
+            heatmap
+        )
+
+        print("GradCAM créée :", gradcam_path)
+
+
+        # =========================
+        # INTERPRETATION
+        # =========================
         if score >= 0.5:
-            prediction =" MALIGNE "
+
+            prediction = "MALIGNE"
             diagnosis = "Cancer malin détecté"
             confidence = score
             class_id = 1
+
         else:
-            prediction = " BELIGNE "
+
+            prediction = "BENIGNE"
             diagnosis = "Aucune tumeur maligne détectée"
             confidence = 1 - score
             class_id = 0
 
+
+
+        # =========================
+        # REPONSE API
+        # =========================
         return {
+
+            "status": "success",
+
             "prediction": prediction,
+
             "diagnosis": diagnosis,
-            "confidence": confidence,
+
+            "confidence": round(confidence, 4),
+
             "class_id": class_id,
-            "gradcam_image": "/" + gradcam_path.replace("\\", "/"),
-            "original_image": "/" + file_path.replace("\\", "/")
+
+
+            "gradcam_image":
+                "/" + gradcam_path.replace("\\", "/"),
+
+
+            "original_image":
+                "/" + file_path.replace("\\", "/")
+
         }
 
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur IA: {str(e)}")
+
+        print("ERREUR DIAGNOSTIC :", str(e))
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur IA: {str(e)}"
+        )
