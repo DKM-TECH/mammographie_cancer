@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from pathlib import Path
 
 def get_img_array(img_path, size=(224, 224)):
 
@@ -113,24 +114,72 @@ def make_gradcam_heatmap(img_array, model, pred_index=None):
 # SUPERPOSITION HEATMAP
 # ========================================================
 
-def overlay_heatmap(img_path, heatmap, alpha=0.4):
+from pathlib import Path
 
-    img = cv2.imread(img_path)
+
+def overlay_heatmap(img_path, heatmap, alpha=0.45):
+
+    img = cv2.imread(str(img_path))
 
     if img is None:
-        raise ValueError("Image introuvable ou corrompue")
+        raise ValueError("Image introuvable")
 
-    img = cv2.resize(img, (224, 224))
 
-    heatmap = cv2.resize(heatmap, (224, 224))
-    heatmap = np.uint8(255 * heatmap)
+    # Redimensionnement image
+    img = cv2.resize(
+        img,
+        (224,224)
+    )
 
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
 
-    superimposed = cv2.addWeighted(img, 1 - alpha, heatmap, alpha, 0)
+    # Redimensionnement heatmap
+    heatmap = cv2.resize(
+        heatmap,
+        (224,224)
+    )
 
-    output_path = img_path.replace(".", "_gradcam.")
 
-    cv2.imwrite(output_path, superimposed)
+    # Conversion en image couleur
+    heatmap = np.uint8(
+        255 * heatmap
+    )
 
-    return output_path
+
+    heatmap_color = cv2.applyColorMap(
+        heatmap,
+        cv2.COLORMAP_JET
+    )
+
+
+    # Fusion
+    gradcam = cv2.addWeighted(
+        img,
+        0.55,
+        heatmap_color,
+        0.45,
+        0
+    )
+
+
+    # Création nouveau fichier
+    path = Path(img_path)
+
+    output_path = (
+        path.parent /
+        f"{path.stem}_gradcam{path.suffix}"
+    )
+
+
+    cv2.imwrite(
+        str(output_path),
+        gradcam
+    )
+
+
+    print("==============================")
+    print("IMAGE ORIGINALE :", img_path)
+    print("IMAGE GRADCAM   :", output_path)
+    print("==============================")
+
+
+    return str(output_path)
