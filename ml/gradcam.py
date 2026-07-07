@@ -60,60 +60,68 @@ def get_last_conv_layer(model):
 # GRAD-CAM CORE
 # ========================================================
 
-def make_gradcam_heatmap(img_array, model, pred_index=None):
-    import tensorflow as tf
-    # Sous-modèle EfficientNet
-    efficientnet = model.get_layer("efficientnetb0")
+def make_gradcam_heatmap(img_array, model):
 
-    # Modèle qui renvoie les cartes de caractéristiques
-    conv_model = tf.keras.Model(
-        inputs=efficientnet.input,
-        outputs=efficientnet.get_layer("top_conv").output
+    import tensorflow as tf
+
+    print("GradCAM: création modèle", flush=True)
+
+
+    # dernière couche convolutionnelle EfficientNet
+    base_model = model.get_layer("efficientnetb0")
+
+    grad_model = tf.keras.Model(
+        inputs=base_model.input,
+        outputs=[
+            base_model.get_layer("top_conv").output,
+            model.output
+        ]
     )
 
-    classifier_input = tf.keras.Input(shape=conv_model.output.shape[1:])
 
-    x = classifier_input
+    print("GradCAM: passage forward", flush=True)
 
-    # Rejouer la tête de classification
-    for layer_name in [
-        "global_average_pooling2d",
-        "batch_normalization",
-        "dropout",
-        "dense",
-        "dropout_1",
-        "dense_1",
-    ]:
-        x = model.get_layer(layer_name)(x)
 
-    classifier_model = tf.keras.Model(classifier_input, x)
-
-    # Passage avant
     with tf.GradientTape() as tape:
 
-        # La sortie de data_augmentation
-        conv_outputs = conv_model(img_array)
+        conv_outputs, predictions = grad_model(img_array)
 
-        tape.watch(conv_outputs)
+        loss = predictions[:,0]
 
-        preds = classifier_model(conv_outputs)
 
-        loss = preds[:, 0]
+    print("GradCAM: gradients", flush=True)
 
-    grads = tape.gradient(loss, conv_outputs)
 
-    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    grads = tape.gradient(
+        loss,
+        conv_outputs
+    )
+
+
+    pooled_grads = tf.reduce_mean(
+        grads,
+        axis=(0,1,2)
+    )
+
 
     conv_outputs = conv_outputs[0]
 
-    heatmap = tf.reduce_sum(conv_outputs * pooled_grads, axis=-1)
 
-    heatmap = tf.maximum(heatmap, 0)
+    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
 
-    heatmap /= tf.reduce_max(heatmap) + 1e-8
+    heatmap = tf.squeeze(heatmap)
+
+
+    heatmap = tf.maximum(
+        heatmap,
+        0
+    )
+
+
+    heatmap /= tf.reduce_max(heatmap)+1e-8
+
 
     return heatmap.numpy()
-
 # ========================================================
 # SUPERPOSITION HEATMAP
 # ========================================================
