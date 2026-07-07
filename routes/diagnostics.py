@@ -41,88 +41,53 @@ model = None
 # LOAD MODEL (lazy)
 # =========================
 
+model = None
+
 def get_model():
     global model
+
     if model is None:
         import tensorflow as tf
+
+        print("Chargement du modèle...")
+
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Modèle introuvable : {MODEL_PATH}")
+
         model = tf.keras.models.load_model(str(MODEL_PATH))
+
+        print("Modèle chargé.")
+
     return model
 
 
 # =========================
 # SAVE FILE
 # =========================
+def save_upload_file(file: UploadFile):
 
-def save_upload_file(file: UploadFile) -> str:
-    ext = file.filename.split(".")[-1].lower()
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
+    extension = Path(file.filename).suffix
 
-    with open(file_path, "wb") as buffer:
+    filename = f"{uuid.uuid4().hex}{extension}"
+
+    filepath = UPLOAD_DIR / filename
+
+    with open(filepath, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # =========================
-    # NORMALISATION IMAGE
-    # =========================
-    img = Image.open(file_path).convert("RGB")
+    img = Image.open(filepath).convert("RGB")
     img = img.resize((IMG_SIZE, IMG_SIZE))
-    img.save(file_path)
+    img.save(filepath)
 
-    return file_path
+    return str(filepath)
 
 
-# =========================
+# =====================================================
 # PREDICTION SIMPLE
-# =========================
+# =====================================================
 
 @router.post("/predict")
 async def predict(file: UploadFile = File(...)):
-
-    if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail="Format image non supporté")
-
-    try:
-        file_path = save_upload_file(file)
-
-        img_array = get_img_array(file_path)
-
-        model = get_model()
-        print("Modèle prêt")
-
-        pred = model.predict(img_array, verbose=0)[0][0]
-
-        score = float(pred)
-
-        if score >= 0.5:
-            prediction =  "Cancer [ MALIGNE ]"
-            confidence = score
-            class_id = 1
-        else:
-            prediction =  "Cancer [ BELIGNE ]"
-            confidence = 1 - score
-            class_id = 0
-
-        return {
-            "prediction": prediction,
-            "confidence": confidence,
-            "class_id": class_id,
-            "image_path": "/" + file_path.replace("\\", "/")
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# =========================
-# PREDICTION + GRAD-CAM
-# =========================
-
-@router.post("/predict-gradcam")
-async def predict_gradcam(file: UploadFile = File(...)):
-
-    print("===== NOUVELLE REQUETE DIAGNOSTIC =====")
-    print("Fichier reçu :", file.filename)
-    print("Type :", file.content_type)
 
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
@@ -132,64 +97,125 @@ async def predict_gradcam(file: UploadFile = File(...)):
 
     try:
 
-        # =========================
-        # SAUVEGARDE IMAGE
-        # =========================
-        file_path = save_upload_file(file)
+        filepath = save_upload_file(file)
 
-        print("Image sauvegardée :", file_path)
+        img_array = get_img_array(filepath)
 
-
-        # =========================
-        # PREPROCESSING
-        # =========================
-        img_array = get_img_array(file_path)
-
-        print("Prétraitement terminé")
-
-
-        # =========================
-        # CHARGEMENT MODELE
-        # =========================
         model = get_model()
 
-        print("Modèle chargé")
-
-
-        # =========================
-        # PREDICTION
-        # =========================
-        pred = model.predict(
+        prediction = model.predict(
             img_array,
             verbose=0
         )[0][0]
 
-        score = float(pred)
+        score = float(prediction)
 
-        print("Score IA :", score)
+        if score >= 0.5:
+            label = "MALIGNE"
+            confidence = score
+            class_id = 1
+        else:
+            label = "BENIGNE"
+            confidence = 1 - score
+            class_id = 0
+
+        return {
+
+            "status": "success",
+
+            "prediction": label,
+
+            "confidence": round(confidence,4),
+
+            "class_id": class_id,
+
+            "image_path": "/" + Path(filepath).relative_to(BASE_DIR).as_posix()
+
+        }
+
+    except Exception as e:
+
+        print(e)
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 
-        # =========================
+# =====================================================
+# PREDICTION + GRADCAM
+# =====================================================
+
+@router.post("/predict-gradcam")
+async def predict_gradcam(file: UploadFile = File(...)):
+
+    print("\n========== NOUVELLE REQUETE ==========")
+
+    if file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Format image non supporté"
+        )
+
+    try:
+
+        # ------------------------------------------------
+
+        filepath = save_upload_file(file)
+
+        print("Image :", filepath)
+
+        # ------------------------------------------------
+
+        img_array = get_img_array(filepath)
+
+        print("Prétraitement OK")
+
+        # ------------------------------------------------
+
+        model = get_model()
+
+        print("Modèle OK")
+
+        # ------------------------------------------------
+
+        prediction = model.predict(
+            img_array,
+            verbose=0
+        )[0][0]
+
+        score = float(prediction)
+
+        print("Score :", score)
+
+        # ------------------------------------------------
         # GRAD-CAM
-        # =========================
-        # =========================
-# GRAD-CAM
-# =========================
+        # ------------------------------------------------
 
-        print("Début GradCAM...")
+        print("Création Heatmap...")
 
-        heatmap = make_gradcam_heatmap(img_array, model)
+        heatmap = make_gradcam_heatmap(
+            img_array,
+            model
+        )
+
         print("Heatmap OK")
 
-        gradcam_path = overlay_heatmap(file_path, heatmap)
-        print("Image GradCAM sauvegardée :", gradcam_path)
+        gradcam_path = overlay_heatmap(
+            filepath,
+            heatmap
+        )
 
-        print("Existe ?", os.path.exists(gradcam_path))
+        print("GradCAM :", gradcam_path)
 
+        print(
+            "Existe ?",
+            os.path.exists(gradcam_path)
+        )
 
-        # =========================
-        # INTERPRETATION
-        # =========================
+        # ------------------------------------------------
+
         if score >= 0.5:
 
             prediction = "MALIGNE"
@@ -204,11 +230,8 @@ async def predict_gradcam(file: UploadFile = File(...)):
             confidence = 1 - score
             class_id = 0
 
+        # ------------------------------------------------
 
-
-        # =========================
-        # REPONSE API
-        # =========================
         return {
 
             "status": "success",
@@ -222,18 +245,20 @@ async def predict_gradcam(file: UploadFile = File(...)):
             "class_id": class_id,
 
             "gradcam_image":
-        "/" + gradcam_path.replace("\\","/"),
+                "/" + Path(gradcam_path).relative_to(BASE_DIR).as_posix(),
 
             "original_image":
-        "/" + file_path.replace("\\","/")
-        }
+                "/" + Path(filepath).relative_to(BASE_DIR).as_posix()
 
+        }
 
     except Exception as e:
 
-        print("ERREUR DIAGNOSTIC :", str(e))
+        print("\n===== ERREUR =====")
+        print(type(e).__name__)
+        print(e)
 
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur IA: {str(e)}"
+            detail=str(e)
         )

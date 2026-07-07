@@ -121,67 +121,57 @@ def make_gradcam_heatmap(img_array, model, pred_index=None):
 
 def overlay_heatmap(img_path, heatmap, alpha=0.45):
 
-    img = cv2.imread(img_path)
+    # Lecture de l'image originale
+    img = cv2.imread(str(img_path))
 
     if img is None:
-        raise ValueError("Image introuvable")
+        raise ValueError(f"Impossible de lire : {img_path}")
 
+    h, w = img.shape[:2]
 
-    img = cv2.resize(img, (224,224))
+    # Redimensionnement de la heatmap à la taille de l'image
+    heatmap = cv2.resize(heatmap, (w, h))
 
+    # Normalisation
+    heatmap = np.maximum(heatmap, 0)
+    heatmap = heatmap / (heatmap.max() + 1e-8)
+    heatmap = np.uint8(255 * heatmap)
 
-    heatmap = cv2.resize(
-        heatmap,
-        (224,224)
-    )
-
-
-    heatmap = np.uint8(
-        255 * heatmap
-    )
-
-
+    # Colorisation
     heatmap_color = cv2.applyColorMap(
         heatmap,
         cv2.COLORMAP_JET
     )
 
-
+    # Fusion image + heatmap
     gradcam = cv2.addWeighted(
         img,
-        1-alpha,
+        1 - alpha,
         heatmap_color,
         alpha,
         0
     )
 
-
+    # Création du chemin de sortie
     original = Path(img_path)
 
-
-    gradcam_name = (
-        original.stem 
-        + "_gradcam"
-        + original.suffix
+    gradcam_path = original.parent / (
+        f"{original.stem}_gradcam{original.suffix}"
     )
 
+    # Sauvegarde
+    ok = cv2.imwrite(str(gradcam_path), gradcam)
 
-    gradcam_path = str(
-        original.parent / gradcam_name
-    )
+    if not ok:
+        raise RuntimeError(
+            f"Impossible d'enregistrer {gradcam_path}"
+        )
 
+    print("=" * 60)
+    print("IMAGE ORIGINALE :", original)
+    print("IMAGE GRADCAM   :", gradcam_path)
+    print("FICHIER CREE    :", ok)
+    print("EXISTE          :", gradcam_path.exists())
+    print("=" * 60)
 
-    success = cv2.imwrite(
-    gradcam_path,
-    gradcam
-    )
-
-    print("FICHIER CREE ?", success)
-    print("EXISTE ?", Path(gradcam_path).exists())
-
-
-    print("ORIGINAL :", img_path)
-    print("GRADCAM :", gradcam_path)
-
-
-    return gradcam_path
+    return str(gradcam_path)
