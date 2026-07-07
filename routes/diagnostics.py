@@ -19,8 +19,6 @@ router = APIRouter()
 # CONFIG
 # =========================
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_TYPES = ["image/jpeg", "image/png", "image/jpg"]
 
@@ -30,6 +28,11 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "ml" / "cancer_model.h5"
+
+
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 import os
 print("EXISTS ?", os.path.exists(MODEL_PATH))
 print("MODEL PATH =", MODEL_PATH)
