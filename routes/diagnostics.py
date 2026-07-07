@@ -52,14 +52,19 @@ def get_model():
     if model is None:
         import tensorflow as tf
 
-        print("Chargement du modèle...")
+        print("Chargement du modèle...", flush=True)
 
         if not MODEL_PATH.exists():
-            raise FileNotFoundError(f"Modèle introuvable : {MODEL_PATH}")
+            raise FileNotFoundError(
+                f"Modèle introuvable : {MODEL_PATH}"
+            )
 
-        model = tf.keras.models.load_model(str(MODEL_PATH))
+        model = tf.keras.models.load_model(
+            str(MODEL_PATH),
+            compile=False
+        )
 
-        print("Modèle chargé.")
+        print("Modèle chargé.", flush=True)
 
     return model
 
