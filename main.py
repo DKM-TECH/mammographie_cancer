@@ -54,7 +54,11 @@ app.mount(
 # =========================
 #from fastapi.middleware.cors import CORSMiddleware
 
-
+origins = [
+    "https://polite-medovik-ed6a00.netlify.app",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
