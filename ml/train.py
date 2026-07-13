@@ -7,6 +7,15 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCh
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras.applications.efficientnet import preprocess_input
+import matplotlib.pyplot as plt
+from sklearn.metrics import (
+    roc_curve,
+    roc_auc_score,
+    confusion_matrix,
+    classification_report,
+    ConfusionMatrixDisplay
+)
+
 # =======================================================
 # CONFIGURATION PATHS
 # =======================================================
@@ -17,6 +26,9 @@ TEST_DIR  = BASE_DIR.parent / "Cancer_Test_Preprocessed"
 
 MODEL_DIR = BASE_DIR.parent / "ml"
 MODEL_PATH = MODEL_DIR / "cancer_model.h5"
+
+FIGURE_DIR = BASE_DIR.parent / "figures"
+os.makedirs(FIGURE_DIR, exist_ok=True)
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -144,7 +156,8 @@ test_ds = test_ds.prefetch(AUTOTUNE)
 base_model = EfficientNetB0(
     include_top=False,
     weights="imagenet",
-    input_shape=(224, 224, 3)
+    input_shape=(224,224,3),
+    name="efficientnet"
 )
 
 base_model.trainable = False  # PHASE 1
@@ -254,5 +267,168 @@ history2 = model.fit(
 # # =======================================================
 model.save(str(MODEL_PATH))
 
-print("\n✅ TRAINING TERMINÉ")
-print(f"📦 Modèle sauvegardé: {MODEL_PATH}")
+# =======================================================
+# EVALUATION
+# =======================================================
+
+print("\nEvaluation finale...")
+
+y_true = []
+y_prob = []
+
+for images, labels in test_ds:
+    preds = model.predict(images, verbose=0)
+
+    y_true.extend(labels.numpy().astype(int))
+
+    y_prob.extend(preds.flatten())
+
+y_true = np.array(y_true)
+y_prob = np.array(y_prob)
+
+y_pred = (y_prob >= 0.5).astype(int)
+
+# =======================================================
+# AUC
+# =======================================================
+
+auc = roc_auc_score(y_true, y_prob)
+
+print(f"\nAUC = {auc:.4f}")
+
+# =======================================================
+# CLASSIFICATION REPORT
+# =======================================================
+
+print("\nClassification Report\n")
+
+print(
+    classification_report(
+        y_true,
+        y_pred,
+        target_names=["BENIGNE", "MALIGNE"]
+    )
+)
+
+# =======================================================
+# CONFUSION MATRIX
+# =======================================================
+
+cm = confusion_matrix(y_true, y_pred)
+
+disp = ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=["BENIGNE", "MALIGNE"]
+)
+
+fig, ax = plt.subplots(figsize=(6,6))
+
+disp.plot(ax=ax, cmap="Blues")
+
+plt.title("Confusion Matrix")
+
+plt.tight_layout()
+
+plt.savefig(
+    FIGURE_DIR / "confusion_matrix.png",
+    dpi=300
+)
+
+plt.close()
+
+
+# =======================================================
+# ROC CURVE
+# =======================================================
+
+fpr, tpr, _ = roc_curve(y_true, y_prob)
+
+plt.figure(figsize=(7,6))
+
+plt.plot(
+    fpr,
+    tpr,
+    label=f"AUC = {auc:.4f}",
+    linewidth=2
+)
+
+plt.plot([0,1],[0,1],"k--")
+
+plt.xlabel("False Positive Rate")
+
+plt.ylabel("True Positive Rate")
+
+plt.title("ROC Curve")
+
+plt.legend()
+
+plt.grid(True)
+
+plt.tight_layout()
+
+plt.savefig(
+    FIGURE_DIR / "roc_curve.png",
+    dpi=300
+)
+
+plt.close()
+
+
+# =======================================================
+# MERGE HISTORIES
+# =======================================================
+
+history = {}
+
+for key in history1.history.keys():
+    history[key] = history1.history[key] + history2.history[key]
+
+# =======================================================
+# FIGURE III.1 : LOSS
+# =======================================================
+
+plt.figure(figsize=(8,5))
+
+plt.plot(history["loss"], linewidth=2, label="Train")
+plt.plot(history["val_loss"], linewidth=2, label="Validation")
+
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Figure III.1 : Loss (Train vs Validation)")
+plt.legend()
+plt.grid(True)
+
+plt.tight_layout()
+
+plt.savefig(
+    FIGURE_DIR / "Figure_III_1_Loss.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.close()
+
+# =======================================================
+# FIGURE III.2 : AUC
+# =======================================================
+
+plt.figure(figsize=(8,5))
+
+plt.plot(history["auc"], linewidth=2, label="Train")
+plt.plot(history["val_auc"], linewidth=2, label="Validation")
+
+plt.xlabel("Epoch")
+plt.ylabel("AUC")
+plt.title("Figure III.2 : AUC (Train vs Validation)")
+plt.legend()
+plt.grid(True)
+
+plt.tight_layout()
+
+plt.savefig(
+    FIGURE_DIR / "Figure_III_2_AUC.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.close()

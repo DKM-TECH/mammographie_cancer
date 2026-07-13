@@ -1,41 +1,6 @@
 import numpy as np
 from pathlib import Path
-
-
-BASE_DIR = Path(__file__).resolve().parent
-
-MODEL_PATH = BASE_DIR / "cancer_model.h5"
-
-print("MODEL PATH =", MODEL_PATH)
-print("EXISTS ?", MODEL_PATH.exists())
-
-
-model = None
-
-IMG_SIZE = 224
-
-
-# ==========================
-# CHARGEMENT MODELE LAZY
-# ==========================
-
-def get_model():
-
-    global model
-
-    if model is None:
-
-        import tensorflow as tf
-
-        print("Chargement du modèle EfficientNet...")
-
-        model = tf.keras.models.load_model(
-            str(MODEL_PATH)
-        )
-
-        print("Modèle chargé")
-
-    return model
+from ml.model_loader import get_model
 
 
 

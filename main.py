@@ -27,7 +27,7 @@ from routes import login, patients,  diagnostics
 # APPLICATION
 # =========================
 app = FastAPI(
-    title="ONCO AI API",
+    title="BreastAidSystem API",
     description="API intelligente d'aide au diagnostic médical",
     version="1.0.0"
 )
@@ -94,13 +94,13 @@ app.include_router(diagnostics.router)
 @app.get("/health")
 def health():
     return {
-        "status": "ONCO AI API opérationnelle"
+        "status": "BreastAidSystem API opérationnelle"
     }
 
 @app.get("/")
 def root():
     return {
-        "application": "ONCO AI",
+        "application": "BreastAidSystem",
         "message": "API d'aide à l'interprétation des mammographies",
         "status": "running"
     }

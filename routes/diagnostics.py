@@ -1,11 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-import os
-import uuid
-import shutil
 from pathlib import Path
 from PIL import Image
-import numpy as np
-
+import uuid
+import shutil
 
 from ml.gradcam import (
     get_img_array,
@@ -13,66 +10,38 @@ from ml.gradcam import (
     overlay_heatmap
 )
 
+from ml.model_loader import get_model
+
 from pydantic import BaseModel
 
 
 class GradcamRequest(BaseModel):
     image_path: str
 
+
 router = APIRouter()
 
-# =========================
-# CONFIG
-# =========================
 
-
-ALLOWED_TYPES = ["image/jpeg", "image/png", "image/jpg"]
+ALLOWED_TYPES = [
+    "image/jpeg",
+    "image/png",
+    "image/jpg"
+]
 
 IMG_SIZE = 224
 
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR / "ml" / "cancer_model.h5"
 
 
 UPLOAD_DIR = BASE_DIR / "uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-import os
-print("EXISTS ?", os.path.exists(MODEL_PATH))
-print("MODEL PATH =", MODEL_PATH)
-
-model = None
+UPLOAD_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 
-# =========================
-# LOAD MODEL (lazy)
-# =========================
-
-model = None
-
-def get_model():
-    global model
-
-    if model is None:
-        import tensorflow as tf
-
-        print("Chargement du modèle...", flush=True)
-
-        if not MODEL_PATH.exists():
-            raise FileNotFoundError(
-                f"Modèle introuvable : {MODEL_PATH}"
-            )
-
-        model = tf.keras.models.load_model(
-            str(MODEL_PATH),
-            compile=False
-        )
-        model.summary()
-        print("Modèle chargé.", flush=True)
-
-    return model
+print(">>>>>>>> diagnostic.py chargé <<<<<<<<")
 
 
 # =========================
@@ -102,12 +71,13 @@ def save_upload_file(file: UploadFile):
 
 @router.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    print("========== ROUTE PREDICT EXECUTEE ==========", flush=True)
+
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
             detail="Format image non supporté"
         )
-
     try:
 
         filepath = save_upload_file(file)

@@ -1,14 +1,18 @@
 import cv2
 import numpy as np
+import tensorflow as tf
 from pathlib import Path
 
-import tensorflow as tf
 from tensorflow.keras.applications.efficientnet import preprocess_input
 
 
-def get_img_array(img_path, size=(224,224)):
+# =====================================================
+# PREPARATION IMAGE
+# =====================================================
 
-    print("Chargement image...", flush=True)
+def get_img_array(img_path, size=(224, 224)):
+
+    print("Chargement image GradCAM...", flush=True)
 
     img = tf.keras.utils.load_img(
         img_path,
@@ -24,101 +28,182 @@ def get_img_array(img_path, size=(224,224)):
 
     img = img.astype(np.float32)
 
-    print("Image prête :", img.shape, flush=True)
+    print(
+        "Image prête :",
+        img.shape,
+        flush=True
+    )
 
     return img
 
-# ========================================================
-# TROUVER DERNIÈRE COUCHE CONV (ROBUSTE)
-# ========================================================
 
-def get_last_conv_layer(model):
+
+# =====================================================
+# TROUVER EFFICIENTNET
+# =====================================================
+
+def get_efficientnet(model):
+
     """
-    Fonction robuste pour modèles imbriqués (EfficientNet dans Sequential)
+    Recherche automatique du backbone EfficientNet
     """
-    last_conv = None
-
-    for layer in model.layers:
-
-        # CAS 1 : modèle imbriqué (Sequential / EfficientNet)
-        if hasattr(layer, "layers"):
-            for sublayer in layer.layers:
-                if len(getattr(sublayer, "output_shape", [])) == 4:
-                    last_conv = sublayer
-
-        # CAS 2 : layer direct
-        if len(getattr(layer, "output_shape", [])) == 4:
-            last_conv = layer
-
-    if last_conv is None:
-        raise ValueError("Aucune couche convolutionnelle trouvée")
-
-    return last_conv
-
-
-# ========================================================
-# GRAD-CAM CORE
-# ========================================================
-def make_gradcam_heatmap(img_array, model):
-
-    import tensorflow as tf
-
-
-    # dernière couche convolutionnelle EfficientNet
-    conv_layer = None
 
     for layer in model.layers:
 
         if isinstance(layer, tf.keras.Model):
 
-            for sublayer in layer.layers:
+            name = layer.name.lower()
 
-                if "top_conv" in sublayer.name:
-                    conv_layer = sublayer
+            if "efficientnet" in name:
+
+                return layer
 
 
-    if conv_layer is None:
-        raise Exception(
-            "Couche convolutionnelle introuvable"
+    raise ValueError(
+        "Backbone EfficientNet introuvable"
+    )
+
+
+
+# =====================================================
+# TROUVER DERNIERE COUCHE CONVOLUTIONNELLE
+# =====================================================
+
+def get_last_conv_layer(base_model):
+
+    """
+    EfficientNetB0 :
+    dernière couche convolutionnelle = top_conv
+    """
+
+    try:
+
+        return base_model.get_layer(
+            "top_conv"
+        )
+
+    except:
+
+        pass
+
+
+    # recherche automatique si nom différent
+
+    for layer in reversed(base_model.layers):
+
+        if isinstance(
+            layer,
+            tf.keras.layers.Conv2D
+        ):
+            return layer
+
+
+    raise ValueError(
+        "Aucune couche convolutionnelle trouvée"
+    )
+
+
+
+# =====================================================
+# GRAD-CAM
+# =====================================================
+
+def make_gradcam_heatmap(img_array, model):
+
+    print("=== GRADCAM START ===", flush=True)
+
+
+    # Trouver EfficientNet
+    base_model = None
+
+    for layer in model.layers:
+
+        if isinstance(layer, tf.keras.Model):
+
+            if "efficientnet" in layer.name.lower():
+                base_model = layer
+                break
+
+
+    if base_model is None:
+        raise ValueError(
+            "EfficientNet introuvable"
         )
 
 
     print(
-        "Couche GradCAM :",
-        conv_layer.name,
+        "EfficientNet :",
+        base_model.name,
         flush=True
     )
 
 
+    # Dernière couche convolutionnelle
+    last_conv = base_model.get_layer(
+        "top_conv"
+    )
+
+
+    print(
+        "Dernière conv :",
+        last_conv.name,
+        flush=True
+    )
+
+
+    # =================================================
+    # IMPORTANT :
+    # On reconstruit le chemin complet
+    # =================================================
+
     grad_model = tf.keras.Model(
-        inputs=model.inputs,
+        inputs=base_model.input,
         outputs=[
-            conv_layer.output,
-            model.output
+            last_conv.output,
+            base_model.output
         ]
     )
 
 
     with tf.GradientTape() as tape:
 
-
-        conv_outputs, predictions = grad_model(
-            img_array
+        conv_output, features = grad_model(
+            img_array,
+            training=False
         )
 
 
-        loss = predictions[:,0]
+        # passer dans la tête de classification
+        x = features
+
+
+        start = False
+
+        for layer in model.layers:
+
+            if layer == base_model:
+                start = True
+                continue
+
+
+            if start:
+                x = layer(x)
+
+
+        loss = x[:,0]
+
 
 
     grads = tape.gradient(
         loss,
-        conv_outputs
+        conv_output
     )
 
 
     if grads is None:
+
         raise Exception(
-            "Gradient nul - modèle non connecté"
+            "Gradient nul"
         )
 
 
@@ -128,11 +213,11 @@ def make_gradcam_heatmap(img_array, model):
     )
 
 
-    conv_outputs = conv_outputs[0]
+    conv_output = conv_output[0]
 
 
     heatmap = tf.reduce_sum(
-        conv_outputs * pooled_grads,
+        conv_output * pooled_grads,
         axis=-1
     )
 
@@ -149,67 +234,92 @@ def make_gradcam_heatmap(img_array, model):
     )
 
 
+    print(
+        "=== HEATMAP OK ===",
+        flush=True
+    )
+
+
     return heatmap.numpy()
-# ========================================================
-# SUPERPOSITION HEATMAP
-# ========================================================
+
+# =====================================================
+# SUPERPOSITION IMAGE + HEATMAP
+# =====================================================
+
+def overlay_heatmap(
+        img_path,
+        heatmap,
+        alpha=0.45
+):
 
 
+    img = cv2.imread(
+        str(img_path)
+    )
 
-
-def overlay_heatmap(img_path, heatmap, alpha=0.45):
-
-    # Lecture de l'image originale
-    img = cv2.imread(str(img_path))
 
     if img is None:
-        raise ValueError(f"Impossible de lire : {img_path}")
+
+        raise ValueError(
+            f"Image impossible à lire : {img_path}"
+        )
+
+
 
     h, w = img.shape[:2]
 
-    # Redimensionnement de la heatmap à la taille de l'image
-    heatmap = cv2.resize(heatmap, (w, h))
 
-    # Normalisation
-    heatmap = np.maximum(heatmap, 0)
-    heatmap = heatmap / (heatmap.max() + 1e-8)
-    heatmap = np.uint8(255 * heatmap)
+    heatmap = cv2.resize(
+        heatmap,
+        (w, h)
+    )
 
-    # Colorisation
+
+    heatmap = np.uint8(
+        255 *
+        heatmap
+    )
+
+
     heatmap_color = cv2.applyColorMap(
         heatmap,
         cv2.COLORMAP_JET
     )
 
-    # Fusion image + heatmap
+
     gradcam = cv2.addWeighted(
         img,
-        1 - alpha,
+        1-alpha,
         heatmap_color,
         alpha,
         0
     )
 
-    # Création du chemin de sortie
-    original = Path(img_path)
 
-    gradcam_path = original.parent / (
-        f"{original.stem}_gradcam{original.suffix}"
+
+    original = Path(
+        img_path
     )
 
-    # Sauvegarde
-    ok = cv2.imwrite(str(gradcam_path), gradcam)
 
-    if not ok:
-        raise RuntimeError(
-            f"Impossible d'enregistrer {gradcam_path}"
-        )
+    output = original.parent / (
+        original.stem +
+        "_gradcam" +
+        original.suffix
+    )
 
-    print("=" * 60)
-    print("IMAGE ORIGINALE :", original)
-    print("IMAGE GRADCAM   :", gradcam_path)
-    print("FICHIER CREE    :", ok)
-    print("EXISTE          :", gradcam_path.exists())
-    print("=" * 60)
 
-    return str(gradcam_path)
+    cv2.imwrite(
+        str(output),
+        gradcam
+    )
+
+
+    print(
+        "GradCAM sauvegardée :",
+        output,
+        flush=True
+    )
+
+
+    return str(output)
